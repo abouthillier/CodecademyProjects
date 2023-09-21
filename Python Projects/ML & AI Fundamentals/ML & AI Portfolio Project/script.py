@@ -16,12 +16,8 @@ print("\n", total_found, "total invasive species found across", sites, "sites")
 simp_data = data.get(['Site', 'Species', 'num_Indivi'])
 
 data_species = pd.merge(data, species, how='left')
-data_species = data_species.drop(data_species[data_species.num_Indivi == 0].index)
+#data_species = data_species.drop(data_species[data_species.num_Indivi == 0].index)
 
-data_species = data_species.sort_values(by='num_Indivi', ascending=False)
+pivot = pd.pivot_table(data_species, values='num_Indivi', index=['Site'], columns=['Species'], aggfunc='sum')
 
-print(data_species.head())
-
-
-
-
+print(pivot.head())
