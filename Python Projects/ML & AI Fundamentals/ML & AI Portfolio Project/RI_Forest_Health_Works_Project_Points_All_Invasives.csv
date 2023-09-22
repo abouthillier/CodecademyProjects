@@ -1,4 +1,4 @@
-﻿X,Y,OBJECTID,id,FileName,Site,Owner,Point_num,Species,num_Indivi,Other,PhotoN,PhotoE,PhotoS,PhotoW,LifeStage,Habitat,PointNotes,photo,Treatment_
+﻿,Y,OBJECTID,id,FileName,Site,Owner,Point_num,Species,num_Indivi,Other,PhotoN,PhotoE,PhotoS,PhotoW,LifeStage,Habitat,PointNotes,photo,Treatment_
 -71.745540472,41.6452783020001,1,1,GL_06_09_P,"Tillinghast Pond Area, Narrow Ln",TNC,367, ,0,PHOTO, , , ,http://www.edc.uri.edu/rinhs_fhwp/photos/GL_06_09_367_W.jpg, , , ,y,y
 -71.744987092,41.6457637820001,2,2,GL_06_09_P,"Tillinghast Pond Area, Narrow Ln",TNC,378, ,0,PHOTO, , , ,http://www.edc.uri.edu/rinhs_fhwp/photos/GL_06_09_378_W.jpg, , , ,y,y
 -71.745845152,41.6458502020001,3,3,GL_06_09_P,"Tillinghast Pond Area, Narrow Ln",TNC,383,LOMO2,5, , , , , ,S,O, , ,y

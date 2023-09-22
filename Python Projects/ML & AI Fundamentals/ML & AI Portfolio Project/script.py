@@ -2,12 +2,11 @@ import pandas as pd
 
 data = pd.read_csv('data.csv')
 species = pd.read_csv('USDA_Plants_Database.csv')
-print(species.columns)
 species.columns = ['Species', 'Synonym Symbol', 'Scientific Name with Author',
        'State Common Name', 'Family']
 
 pd.set_option('display.max_columns', None)
-print(data.columns)
+# print(data.columns)
 
 total_found = data['num_Indivi'].sum()
 sites = data['Site'].count()
@@ -20,4 +19,4 @@ data_species = pd.merge(data, species, how='left')
 
 pivot = pd.pivot_table(data_species, values='num_Indivi', index=['Site'], columns=['Species'], aggfunc='sum')
 
-print(pivot.head())
+#print(pivot.head())
