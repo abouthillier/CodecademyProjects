@@ -7,12 +7,9 @@ Create ground to catch shadows
 
 dynamic text sizing
 
-create ground that shows terrain of state
+create ground that shows terrain of coord area
  - investigated with BlenderGIS and Blend OSM addons 9/23
 
 create outline of state or area
 
 add numbers to describe image
-
-9/23 re-did bars to be indiv objects
-

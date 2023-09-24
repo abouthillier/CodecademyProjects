@@ -1,7 +1,6 @@
 import os
 import numpy as np
 from pyproj import Proj
-import mathutils
 from mathutils import Matrix, Vector
 from matplotlib import cm
 import matplotlib.pyplot as plt
@@ -10,7 +9,7 @@ import bpy
 import bmesh
 import utils
 from math import sin, cos, pi
-from pathlib import Path
+# from geopy.geocoders import Nominatim
 
 def normalize_points(points):
     """Normalize points while preserving aspect ratio"""
@@ -119,7 +118,7 @@ def heatmap_barplot(grid, h=4, width=10, bar_scale=0.95, num_colors=10, colormap
     ground = utils.create_ground(color[:3])
 
 
-def heatmap_barplot_separate(grid, h=4, width=10, bar_scale=0.95, num_colors=10, colormap=cm.summer, bevel_width=0.015, logarithmic=False):
+def heatmap_barplot_separate(grid, h=4, width=10, bar_scale=0.95, num_colors=10, colormap=cm.summer, bevel_width=0.015, logarithmic=False, animation=False):
     """Create 3D barplot from heatmap grid"""
 
     # Logarithmic scale
@@ -160,6 +159,13 @@ def heatmap_barplot_separate(grid, h=4, width=10, bar_scale=0.95, num_colors=10,
 
                 obj = utils.bmesh_to_object(bm)
 
+                if animation:
+                    start = obj.location - Vector((0,0,bar_height+0.01))
+                    obj.location = start
+                    obj.keyframe_insert(data_path='location', frame=12)
+                    obj.location = start + Vector((0,0,bar_height))
+                    obj.keyframe_insert(data_path='location', frame=52)
+
                 # Add bevel modifier
                 bevel = obj.modifiers.new('Bevel', 'BEVEL')
                 bevel.width = bevel_width
@@ -172,7 +178,15 @@ def heatmap_barplot_separate(grid, h=4, width=10, bar_scale=0.95, num_colors=10,
     ground = utils.create_ground(colormap(z_max))
 
 # Load data points
-filepath = 'data.csv'
+# filepath = 'data/Electric_Vehicle_Charging_Stations.csv'
+filepath = 'data/data.csv'
+
+# longitude = 'LONGITUDE'
+# latitude = 'LATITDE'
+
+longitude = 'X'
+latitude = 'Y'
+quantity = False
 
 # Check if script is executed in Blender and get absolute path of current folder
 if bpy.context.space_data is not None:
@@ -183,31 +197,44 @@ else:
 datapath = cwd + '/' + filepath
 dataframe = pd.read_csv(datapath)
 
-points = dataframe.get(['X', 'Y']).values.tolist()
+points = dataframe.get([longitude, latitude]).values.tolist()
 
 print('Number of points: {}'.format(len(points)))
 
 # Project points into Mercator projection
 p = Proj("epsg:3785")  # Popular Visualisation CRS / Mercator
-points = np.apply_along_axis(lambda x : p(*x), 1, points)
+points_projected = np.apply_along_axis(lambda x : p(*x), 1, points)
 
-weight = np.ravel(dataframe.get(['num_Indivi']).values.tolist())
+data = normalize_points(points_projected)
 
-data = normalize_points(points)
-
+print('Points projected and normalized.')
 
 """
 
 Blender Scene Variables
 
 """
+print('Setting the scene...')
+
+# # Get the name of the geographic location specified
+# geolocator = Nominatim(user_agent="blender_render")
+# latlong = str(points[0][0])+","+str(points[0][-1])
+# print(latlong)
+# location = geolocator.reverse(latlong)
+# print(location)
+# state = location.address.get('state', '')
 
 # Set resolution of rendered image
 res_x, res_y = 1280, 720
-
-camera_position, target_position = (9.5, -20, 13), (0.3, -1.8, 2.0)
+graphic_width = 10
+camera_position = (10, -25, 20)
+target_position = (0.3, -1.8, 6.5)
+label_text = filepath[5:-4].replace('_', ' ')
+label_position = (0, -6, 0.01)
+label_scale = 0.5
 camera_type, ortho_scale, lens = 'PERSP', 18, 50
 bg_color = (0.9, 0.9, 0)
+animation = True
 
 # Remove all default elements in the scene
 if bpy.app.version < (2, 80, 0):
@@ -218,9 +245,9 @@ bpy.ops.object.delete(use_global=False)
 
 # Create scene
 target = utils.create_target(target_position)
-camera = utils.create_camera(camera_position, target=target, camera_type=camera_type, ortho_scale=ortho_scale, lens=lens)
+camera = utils.create_camera(camera_position, target=target, camera_type=camera_type, ortho_scale=ortho_scale, lens=lens, animation=animation)
 sun = utils.create_lamp((5, 5, 10), 'SUN', target=target)
-label = utils.create_text("Invasive Plant Species Distribution in RI")
+label = utils.create_text(text=label_text, position=label_position, label_scale=label_scale)
 #utils.create_text(str(max(weight)), (0,0,5), (pi/2,0,0))
 
 # Set background color
@@ -239,11 +266,15 @@ if bpy.app.version < (2, 80, 0):
 Generate a 2D Heatmap from the X,Y data
 
 """
+print('Generating Heatmap...')
 hist = heatmap_grid(data, sigma_sq=0.00005, n=100, m=2) 
 
+if quantity:
 # Rather than ony map density of X,Y, weight the coordinates based on the num_Indivi values
-weighted_grid = [[hist[row][col] * weight[row] for col in range(len(hist[0]))] for row in range(len(hist))]
-
+    weight = np.ravel(dataframe.get([quantity]).values.tolist())
+    heatmap = [[hist[row][col] * weight[row] for col in range(len(hist[0]))] for row in range(len(hist))]
+else:
+    heatmap = hist
 
 """
 Generate 3D barplot from the heatmap grid
@@ -254,7 +285,8 @@ https://matplotlib.org/stable/gallery/color/colormap_reference.html
 Perceptually Uniform Options: viridis, plasma, inferno, magma, cividis
 
 """
-heatmap_barplot_separate(np.array(weighted_grid), colormap=cm.viridis)
+print('Generating 3D barplot...')
+heatmap_barplot_separate(np.array(heatmap), colormap=cm.viridis, animation=animation)
 
 
 """
@@ -263,6 +295,5 @@ Render the barplot to an exported image
 """
 render_folder = 'render'
 render_name = 'render'
-animation = False
-num_frames = 0
+num_frames = 1
 utils.render_to_folder(render_folder, render_name, res_x=res_x, res_y=res_y, animation=animation, frame_end=num_frames, render_opengl=False)

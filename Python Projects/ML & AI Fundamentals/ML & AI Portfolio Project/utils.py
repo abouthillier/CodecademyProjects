@@ -2,6 +2,7 @@ import os
 import bpy
 import bmesh
 from matplotlib import cm
+from math import pi
 
 def simple_material(diffuse_color):
     mat = bpy.data.materials.new('Material')
@@ -50,7 +51,7 @@ def create_target(origin=(0,0,0)):
 
     return tar
 
-def create_camera(origin=(0,0,0), target=None, lens=35, clip_start=0.1, clip_end=200, camera_type='PERSP', ortho_scale=6):
+def create_camera(origin=(0,0,0), target=None, lens=35, clip_start=0.1, clip_end=200, camera_type='PERSP', ortho_scale=6, animation=False):
     # Create object and camera
     camera = bpy.data.cameras.new("Camera")
     camera.lens = lens
@@ -69,7 +70,27 @@ def create_camera(origin=(0,0,0), target=None, lens=35, clip_start=0.1, clip_end
         bpy.context.collection.objects.link(obj)
     bpy.context.scene.camera = obj # Make this the current camera
 
+    # Anchor camera pointed to target
     if target: track_to_constraint(obj, target)
+
+    # Orbit camera around rendering
+    if animation:
+
+        bpy.ops.curve.primitive_bezier_circle_add(radius=5)
+        circle = bpy.context.object
+        circle.rotation_euler = (0,0,pi)
+        circle.location = (0,0,-6.5)
+        circle.keyframe_insert('rotation_euler', frame=1)
+        circle.keyframe_insert('location', frame=1)
+        circle.rotation_euler = (0,0,2*pi)
+        circle.location = (0,0,0)
+        circle.keyframe_insert('rotation_euler', frame=240)
+        circle.keyframe_insert('location', frame=240)
+
+        # Follow Path Constraint
+        fp_constraint = obj.constraints.new('FOLLOW_PATH')
+        fp_constraint.target = circle
+
     return obj
 
 def create_lamp(origin, type='POINT', energy=1, color=(1,1,1), target=None):
@@ -91,7 +112,7 @@ def create_lamp(origin, type='POINT', energy=1, color=(1,1,1), target=None):
     if target: track_to_constraint(obj, target)
     return obj
 
-def create_text(text, position=(0,0,0.01), rotation=(0,0,0)):
+def create_text(text, position=(0,0,0.01), label_scale=1, rotation=(0,0,0)):
 
     text_curve = bpy.data.curves.new(type="FONT", name="Font Curve")
     text_curve.body = text
@@ -99,8 +120,8 @@ def create_text(text, position=(0,0,0.01), rotation=(0,0,0)):
 
     obj = bpy.data.objects.new(name="Font Object", object_data=text_curve)
     obj.location = position
+    obj.scale = (label_scale, label_scale, label_scale)
     obj.rotation_euler = rotation
-    #obj.scale = 
     mat = simple_material((0,0,0))
     obj.data.materials.append(mat)
 
@@ -108,24 +129,26 @@ def create_text(text, position=(0,0,0.01), rotation=(0,0,0)):
     return obj
 
 def render_to_folder(render_folder='render', render_name='render', res_x=800, res_y=800, res_percentage=100, animation=False, frame_end=None, render_opengl=False):
-    print('renderToFolder called')
-    print('render_folder : {}'.format(render_folder))
-    print('render_name   : {}'.format(render_name))
+    
+    # Set the camera to the active view
+    area = next(area for area in bpy.context.screen.areas if area.type == 'VIEW_3D')
+    area.spaces[0].region_3d.view_perspective = 'CAMERA'
 
     scene = bpy.context.scene
     scene.render.resolution_x = res_x
     scene.render.resolution_y = res_y
     scene.render.resolution_percentage = res_percentage
+    scene.render.engine = 'BLENDER_EEVEE'
     if frame_end:
         scene.frame_end = frame_end
 
     # Check if script is executed inside Blender
-    if (bpy.context.space_data is None) or render_opengl:
+    if bpy.context.space_data or render_opengl:
         # Specify folder to save rendering and check if it exists
         render_folder = os.path.join(os.getcwd(), render_folder)
         if(not os.path.exists(render_folder)):
             os.mkdir(render_folder)
-
+        print('Rendering...')
         if animation:
             # Render animation
             scene.render.filepath = os.path.join(render_folder, render_name)
@@ -134,14 +157,11 @@ def render_to_folder(render_folder='render', render_name='render', res_x=800, re
             else:
                 bpy.ops.render.render(animation=True)
         else:
-            # Render still frame
-            scene.render.filepath = os.path.join(render_folder,
-                render_name + '.png')
-            print('Fielath: ', scene.render.filepath)
+        # Render still frame
+            scene.render.filepath = os.path.join(render_folder, render_name + '.png')
             if render_opengl:
                 bpy.ops.render.opengl(write_still=True, view_context=False)
             else:
-                print('Trying to render')
                 bpy.ops.render.render(write_still=True)
 
 def create_ground(color):
@@ -160,7 +180,7 @@ def create_ground(color):
         #     print(point)
         #     bm.verts.new((point))
 
-    s = 30
+    s = 40
     bm.verts.new((s,s,0))
     bm.verts.new((s,-s,0))
     bm.verts.new((-s,s,0))
