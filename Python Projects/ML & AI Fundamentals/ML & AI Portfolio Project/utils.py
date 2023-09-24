@@ -1,6 +1,7 @@
 import os
 import bpy
 import bmesh
+from matplotlib import cm
 
 def simple_material(diffuse_color):
     mat = bpy.data.materials.new('Material')
@@ -80,7 +81,6 @@ def create_lamp(origin, type='POINT', energy=1, color=(1,1,1), target=None):
         obj.data.energy = energy
         obj.data.color = color
     else:
-        print("creating lamp")
         light_data = bpy.data.lights.new(name='New light', type=type)
         obj = bpy.data.objects.new(name='New light', object_data=light_data)
         obj.location = origin
@@ -91,7 +91,7 @@ def create_lamp(origin, type='POINT', energy=1, color=(1,1,1), target=None):
     if target: track_to_constraint(obj, target)
     return obj
 
-def create_text(text, position=(0,0,0)):
+def create_text(text, position=(0,0,0.01), rotation=(0,0,0)):
 
     text_curve = bpy.data.curves.new(type="FONT", name="Font Curve")
     text_curve.body = text
@@ -99,16 +99,13 @@ def create_text(text, position=(0,0,0)):
 
     obj = bpy.data.objects.new(name="Font Object", object_data=text_curve)
     obj.location = position
+    obj.rotation_euler = rotation
+    #obj.scale = 
+    mat = simple_material((0,0,0))
+    obj.data.materials.append(mat)
 
     bpy.context.scene.collection.objects.link(obj)
     return obj
-
-def create_plane(position=(0,0,0)):
-
-    bmesh.ops.create_plane()
-
-    return obj
-
 
 def render_to_folder(render_folder='render', render_name='render', res_x=800, res_y=800, res_percentage=100, animation=False, frame_end=None, render_opengl=False):
     print('renderToFolder called')
@@ -131,8 +128,7 @@ def render_to_folder(render_folder='render', render_name='render', res_x=800, re
 
         if animation:
             # Render animation
-            scene.render.filepath = os.path.join(render_folder,
-                render_name)
+            scene.render.filepath = os.path.join(render_folder, render_name)
             if render_opengl:
                 bpy.ops.render.opengl(animation=True, view_context=False)
             else:
@@ -141,7 +137,72 @@ def render_to_folder(render_folder='render', render_name='render', res_x=800, re
             # Render still frame
             scene.render.filepath = os.path.join(render_folder,
                 render_name + '.png')
+            print('Fielath: ', scene.render.filepath)
             if render_opengl:
                 bpy.ops.render.opengl(write_still=True, view_context=False)
             else:
+                print('Trying to render')
                 bpy.ops.render.render(write_still=True)
+
+def create_ground(color):
+
+    # TODO 
+    # Only create a plane for the area seen by the active camera
+    # frame points currently fill the camera view
+    # Nex step is to project those vectors onto the origin with z=0
+    
+    # frame_px, frame = view3d_camera_border(bpy.context.scene)
+    # print("Camera frame:", frame_px)
+    
+    bm = bmesh.new()
+    
+    # for point in frame_px:
+        #     print(point)
+        #     bm.verts.new((point))
+
+    s = 30
+    bm.verts.new((s,s,0))
+    bm.verts.new((s,-s,0))
+    bm.verts.new((-s,s,0))
+    bm.verts.new((-s,-s,0))
+
+    bmesh.ops.contextual_create(bm, geom=bm.verts)
+
+    obj = bmesh_to_object(bm, "Ground")
+    mat = simple_material(color[:3])
+    obj.data.materials.append(mat)
+
+    return obj
+
+# Currently unused
+def view3d_find():
+    # returns first 3d view, normally we get from context
+    for area in bpy.context.window.screen.areas:
+        if area.type == 'VIEW_3D':
+            v3d = area.spaces[0]
+            rv3d = v3d.region_3d
+            for region in area.regions:
+                if region.type == 'WINDOW':
+                    return region, rv3d
+    return None, None
+
+# Currently unused
+def view3d_camera_border(scene):
+    obj = scene.camera
+    cam = obj.data
+
+    for area in bpy.context.screen.areas:
+        if area.type == 'VIEW_3D':
+            area.spaces[0].region_3d.view_perspective = 'CAMERA'
+
+    frame = cam.view_frame(scene=scene)
+
+    # move from object-space into world-space 
+    frame = [obj.matrix_world @ v for v in frame]
+    # print(frame)
+
+    # move into pixelspace
+    from bpy_extras.view3d_utils import location_3d_to_region_2d
+    region, rv3d = view3d_find()
+    frame_px = [location_3d_to_region_2d(region, rv3d, v) for v in frame]
+    return frame_px, frame

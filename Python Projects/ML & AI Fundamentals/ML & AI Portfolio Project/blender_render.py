@@ -1,16 +1,14 @@
 import os
 import numpy as np
 from pyproj import Proj
-from mathutils import Matrix, Vector
 import mathutils
-from matplotlib import cm 
-#import overpy
+from mathutils import Matrix, Vector
+from matplotlib import cm
+import matplotlib.pyplot as plt
 import pandas as pd
-
 import bpy
 import bmesh
 import utils
-import utils_osm
 from math import sin, cos, pi
 from pathlib import Path
 
@@ -38,8 +36,11 @@ def heatmap_grid(data, sigma_sq=0.0001, n=20, m=2):
 
     X = np.ndarray((n, n), dtype=object)
     for idx in np.arange(len(points)):
+        # print('Index: ', idx, ' Row Data: ', data[idx])
         x, y = data[idx]
         i, j = int(x * (n - 1)), int(y * (n - 1))
+        # print('i: ', i)
+        # print('j: ', j)
         if X[i, j] is None:
             X[i, j] = [(x, y)]
         else:
@@ -59,11 +60,10 @@ def heatmap_grid(data, sigma_sq=0.0001, n=20, m=2):
                             grid[i0][j0] += np.exp(- ((x0 - x)**2)/
                                 (2*sigma_sq) - ((y0 - y)**2)/(2*sigma_sq))
 
-    #print(grid)
     return grid
 
 
-def heatmap_barplot(grid, h=4, width=10, bar_scale=0.9, num_colors=10, colormap=cm.summer, bevel_width=0.015, logarithmic=False):
+def heatmap_barplot(grid, h=4, width=10, bar_scale=0.95, num_colors=10, colormap=cm.summer, bevel_width=0.015, logarithmic=False):
     """Create 3D barplot from heatmap grid"""
 
     # Logarithmic scale
@@ -116,13 +116,84 @@ def heatmap_barplot(grid, h=4, width=10, bar_scale=0.9, num_colors=10, colormap=
         bevel = obj.modifiers.new('Bevel', 'BEVEL')
         bevel.width = bevel_width
 
-    bm_plane = bmesh.new()
-    bmesh.ops.create_circle(bm_plane, radius=n**2)
-    obj = utils.bmesh_to_object(bm_plane)
-    mat = utils.simple_material(color[:3])
-    obj.data.materials.append(mat)
-    objList.append(obj)
+    ground = utils.create_ground(color[:3])
 
+
+def heatmap_barplot_separate(grid, h=4, width=10, bar_scale=0.95, num_colors=10, colormap=cm.summer, bevel_width=0.015, logarithmic=False):
+    """Create 3D barplot from heatmap grid"""
+
+    # Logarithmic scale
+    if logarithmic:
+        grid = np.log(grid + 1)
+
+    # Find maximum value
+    z_max = np.max(grid)
+
+    n, m = grid.shape
+    bar_width = bar_scale * width / max(n, m)
+
+    # List of bmesh elements
+    bmList = []
+
+    # Iterate over grid
+    for i in range(n):
+        for j in range(m):
+            x, y, z = i / (n - 1), j / (m - 1), grid[i][j]
+            if z > 0.001:
+
+                bar_height = ((h - bar_width) * z / z_max) + bar_width
+
+                bm = bmesh.new()
+                bmList.append(bm)
+
+                T = Matrix.Translation(Vector((
+                    width*(x - 0.5),
+                    width*(y - 0.5),
+                    bar_height / 2)))
+
+                S = Matrix.Scale(bar_height / bar_width, 4, Vector((0, 0, 1)))
+
+                if bpy.app.version < (2, 80, 0):
+                    bmesh.ops.create_cube(bm, size=bar_width, matrix=T*S)
+                else:
+                    bmesh.ops.create_cube(bm, size=bar_width, matrix=T@S)
+
+                obj = utils.bmesh_to_object(bm)
+
+                # Add bevel modifier
+                bevel = obj.modifiers.new('Bevel', 'BEVEL')
+                bevel.width = bevel_width
+
+                # Create material with colormap
+                color = colormap((z/z_max))
+                mat = utils.simple_material(color[:3])
+                obj.data.materials.append(mat)
+
+    ground = utils.create_ground(colormap(z_max))
+
+# Load data points
+filepath = 'data.csv'
+
+# Check if script is executed in Blender and get absolute path of current folder
+if bpy.context.space_data is not None:
+    cwd = os.path.dirname(bpy.context.space_data.text.filepath) + '/'
+else:
+    cwd = os.path.dirname(os.path.abspath(__file__))
+
+datapath = cwd + '/' + filepath
+dataframe = pd.read_csv(datapath)
+
+points = dataframe.get(['X', 'Y']).values.tolist()
+
+print('Number of points: {}'.format(len(points)))
+
+# Project points into Mercator projection
+p = Proj("epsg:3785")  # Popular Visualisation CRS / Mercator
+points = np.apply_along_axis(lambda x : p(*x), 1, points)
+
+weight = np.ravel(dataframe.get(['num_Indivi']).values.tolist())
+
+data = normalize_points(points)
 
 
 """
@@ -150,7 +221,7 @@ target = utils.create_target(target_position)
 camera = utils.create_camera(camera_position, target=target, camera_type=camera_type, ortho_scale=ortho_scale, lens=lens)
 sun = utils.create_lamp((5, 5, 10), 'SUN', target=target)
 label = utils.create_text("Invasive Plant Species Distribution in RI")
-#ground = util.create_plane()
+#utils.create_text(str(max(weight)), (0,0,5), (pi/2,0,0))
 
 # Set background color
 if bpy.app.version < (2, 80, 0):
@@ -164,30 +235,32 @@ if bpy.app.version < (2, 80, 0):
     bpy.context.scene.world.light_settings.samples = 8
 
 
-# Load data points
-path = Path(os.path.dirname(os.path.abspath(__file__)))
-print(path.parents[0])
-filepath = 'data.csv'
-datapath = path.parents[0].name + filepath
+"""
+Generate a 2D Heatmap from the X,Y data
 
-# data.csv moves to blender folder temporarily
-dataframe = pd.read_csv(filepath)
+"""
+hist = heatmap_grid(data, sigma_sq=0.00005, n=100, m=2) 
 
-points_df = dataframe.get(['X', 'Y'])
-points = points_df.values.tolist()
+# Rather than ony map density of X,Y, weight the coordinates based on the num_Indivi values
+weighted_grid = [[hist[row][col] * weight[row] for col in range(len(hist[0]))] for row in range(len(hist))]
 
-print('Number of points: {}'.format(len(points)))
 
-# Project points into Mercator projection
-p = Proj(init="epsg:3785")  # Popular Visualisation CRS / Mercator
-points = np.apply_along_axis(lambda x : p(*x), 1, points)
+"""
+Generate 3D barplot from the heatmap grid
 
-data = normalize_points(points)
+Color Map Reference:
+https://matplotlib.org/stable/gallery/color/colormap_reference.html
 
-hist = heatmap_grid(data, sigma_sq=0.00005, n=80)
+Perceptually Uniform Options: viridis, plasma, inferno, magma, cividis
 
-heatmap_barplot(hist, colormap=cm.viridis)
+"""
+heatmap_barplot_separate(np.array(weighted_grid), colormap=cm.viridis)
 
+
+"""
+Render the barplot to an exported image
+
+"""
 render_folder = 'render'
 render_name = 'render'
 animation = False
