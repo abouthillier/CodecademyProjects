@@ -41,8 +41,8 @@ def track_to_constraint(obj, target):
     constraint.track_axis = 'TRACK_NEGATIVE_Z'
     constraint.up_axis = 'UP_Y'
 
-def create_target(origin=(0,0,0)):
-    tar = bpy.data.objects.new('Target', None)
+def create_target(name, origin=(0,0,0)):
+    tar = bpy.data.objects.new(name, None)
     if bpy.app.version < (2, 80, 0):
         bpy.context.scene.objects.link(tar)
     else:
@@ -51,7 +51,7 @@ def create_target(origin=(0,0,0)):
 
     return tar
 
-def create_camera(origin=(0,0,0), target=None, lens=35, clip_start=0.1, clip_end=200, camera_type='PERSP', ortho_scale=6, animation=False):
+def create_camera(origin=(0,0,0), lens=35, clip_start=0.1, clip_end=200, camera_type='PERSP', ortho_scale=6, animation=False):
     # Create object and camera
     camera = bpy.data.cameras.new("Camera")
     camera.lens = lens
@@ -71,7 +71,8 @@ def create_camera(origin=(0,0,0), target=None, lens=35, clip_start=0.1, clip_end
     bpy.context.scene.camera = obj # Make this the current camera
 
     # Anchor camera pointed to target
-    if target: track_to_constraint(obj, target)
+    target = create_target(name='CamTarget', origin=(0,0,14))
+    track_to_constraint(obj, target)
 
     # Orbit camera around rendering
     if animation:
@@ -79,13 +80,20 @@ def create_camera(origin=(0,0,0), target=None, lens=35, clip_start=0.1, clip_end
         bpy.ops.curve.primitive_bezier_circle_add(radius=5)
         circle = bpy.context.object
         circle.rotation_euler = (0,0,pi)
-        circle.location = (0,0,-6.5)
+        circle.location = (0,0,-0.15)
+        circle.scale = (0.01,0.01,0.01)
         circle.keyframe_insert('rotation_euler', frame=1)
         circle.keyframe_insert('location', frame=1)
+        circle.keyframe_insert('scale', frame=1)
+        target.keyframe_insert('location', frame=1)
+        target.location = (0,0,4)
         circle.rotation_euler = (0,0,2*pi)
         circle.location = (0,0,0)
+        circle.scale = (1,1,1)
         circle.keyframe_insert('rotation_euler', frame=240)
         circle.keyframe_insert('location', frame=240)
+        circle.keyframe_insert('scale', frame=240)
+        target.keyframe_insert('location', frame=240)
 
         # Follow Path Constraint
         fp_constraint = obj.constraints.new('FOLLOW_PATH')

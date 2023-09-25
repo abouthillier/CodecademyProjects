@@ -178,15 +178,16 @@ def heatmap_barplot_separate(grid, h=4, width=10, bar_scale=0.95, num_colors=10,
     ground = utils.create_ground(colormap(z_max))
 
 # Load data points
-# filepath = 'data/Electric_Vehicle_Charging_Stations.csv'
-filepath = 'data/data.csv'
+filepath = 'data/Electric_Vehicle_Charging_Stations.csv'
+# filepath = 'data/data.csv'
 
-# longitude = 'LONGITUDE'
-# latitude = 'LATITDE'
+longitude = 'LONGITUDE'
+latitude = 'LATITDE'
+quantity = ''
 
-longitude = 'X'
-latitude = 'Y'
-quantity = False
+# longitude = 'X'
+# latitude = 'Y'
+# quantity = 'num_Indivi'
 
 # Check if script is executed in Blender and get absolute path of current folder
 if bpy.context.space_data is not None:
@@ -228,13 +229,14 @@ print('Setting the scene...')
 res_x, res_y = 1280, 720
 graphic_width = 10
 camera_position = (10, -25, 20)
-target_position = (0.3, -1.8, 6.5)
+target_position = (0.3, -1.8, 4)
 label_text = filepath[5:-4].replace('_', ' ')
 label_position = (0, -6, 0.01)
 label_scale = 0.5
 camera_type, ortho_scale, lens = 'PERSP', 18, 50
 bg_color = (0.9, 0.9, 0)
 animation = True
+num_frames = 250
 
 # Remove all default elements in the scene
 if bpy.app.version < (2, 80, 0):
@@ -244,8 +246,8 @@ else:
 bpy.ops.object.delete(use_global=False)
 
 # Create scene
-target = utils.create_target(target_position)
-camera = utils.create_camera(camera_position, target=target, camera_type=camera_type, ortho_scale=ortho_scale, lens=lens, animation=animation)
+target = utils.create_target(name='SunTarget', origin=target_position)
+camera = utils.create_camera(camera_position, camera_type=camera_type, ortho_scale=ortho_scale, lens=lens, animation=animation)
 sun = utils.create_lamp((5, 5, 10), 'SUN', target=target)
 label = utils.create_text(text=label_text, position=label_position, label_scale=label_scale)
 #utils.create_text(str(max(weight)), (0,0,5), (pi/2,0,0))
@@ -295,5 +297,4 @@ Render the barplot to an exported image
 """
 render_folder = 'render'
 render_name = 'render'
-num_frames = 1
 utils.render_to_folder(render_folder, render_name, res_x=res_x, res_y=res_y, animation=animation, frame_end=num_frames, render_opengl=False)
